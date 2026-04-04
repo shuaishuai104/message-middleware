@@ -1,0 +1,134 @@
+spring:
+  application:
+    name: kafka-producer
+  kafka:
+    # ==================== Producer 基础配置 ====================
+    bootstrap-servers: localhost:9092,localhost:9093,localhost:9094
+
+    # 生产者的客户端ID，用于标识来自哪个生产者实例
+    # 生产实践中：通常设置为 "producer-${spring.application.name}" 格式方便追踪
+    client-id: producer-${spring.application.name}
+
+    # ==================== 消息发送确认机制 (acks) ====================
+    # acks: 生产者发送消息后，需要等待leader分区和ISR副本确认的最大数量
+    # - 0: 不等待任何确认，消息发送即视为成功（最高吞吐量，最低可靠性）
+    #     适用场景：日志采集、对丢失不敏感的数据
+    # - 1: 只等待leader分区确认，不等待ISR副本确认
+    #     适用场景：允许少量丢失，对延迟敏感的业务
+    # - all (-1): 等待leader和所有ISR副本确认（最高可靠性，会有较高延迟）
+    #     生产实践推荐值：all（对数据可靠性要求高的核心链路）
+    acks: all
+
+    # ==================== 重试机制 ====================
+    # 发送失败时的最大重试次数
+    # 生产实践：通常设置为 3-10 次，对于核心链路可设置更高
+    retries: 3
+
+    # 重试间隔时间的基数（毫秒）
+    # 实际间隔 = basebackoff * (2 ^ retry-1) + jitter
+    # 生产实践：通常设置为 100ms，配合指数退避
+    retry-backoff-ms: 100
+
+    # ==================== 批处理优化 ====================
+    # 批次大小（字节）- 当批次达到此大小时发送
+    # 生产实践：
+    # - 高吞吐场景：32KB - 64KB
+    # - 低延迟场景：16KB以下
+    # 注意：16KB以下可能导致更频繁的发送，影响网络效率
+    batch-size: 16384
+
+    # 批次等待时间（毫秒）- 即使批次未满，等待这么久也会发送
+    # 设置为0则完全依赖batch-size；设置大于0可在延迟和吞吐量间平衡
+    # 生产实践：
+    # - 低延迟场景：5-10ms
+    # - 高吞吐场景：40-100ms
+    linger-ms: 10
+
+    # ==================== 请求缓冲 ====================
+    # 生产者用于缓冲等待发送到服务器的记录的总内存大小（字节）
+    # 生产实践：通常设置为 32MB - 64MB
+    buffer-memory: 33554432
+
+    # ==================== 压缩配置 ====================
+    # 消息压缩类型，可选值：none, gzip, snappy, lz4, zstd
+    # 生产实践：
+    # - gzip: 压缩率最高（≈0.7），CPU消耗高，适合存储受限场景
+    # - snappy: 压缩率中等（≈0.8），CPU消耗适中，平衡之选
+    # - lz4: 压缩率中等（≈0.8），CPU消耗低，极低延迟
+    # - zstd: 压缩率高（≈0.75），支持增量压缩，但JDK支持有限
+    compression-type: snappy
+
+    # ==================== 序列化配置 ====================
+    # 键的序列化类
+    key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    # 值的序列化类
+    value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    # 头部序列化类（如果使用消息头）
+    header-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+    # ==================== 幂等性配置 ====================
+    # 是否启用幂等发送，启用后Kafka会保证Exactly-Once语义
+    # 生产实践：生产环境强烈建议开启（true），轻微影响吞吐量但保证数据不重复
+    enable-idempotence: true
+
+    # ==================== 最大单次请求相关 ====================
+    # 单个连接的最大未确认请求数
+    # 影响并发度和CPU使用，过高可能导致乱序，过低影响吞吐
+    # 生产实践：通常设置为 5（Kafka默认），开启幂等时最大为5
+    max-in-flight-requests-per-connection: 5
+
+    # 发送超时时间（毫秒）- 超过此时间未收到响应则报错
+    # 生产实践：通常设置为 120000（2分钟）
+    delivery-timeout-ms: 120000
+
+    # 请求超时时间（毫秒）- 等待服务器响应的时间
+    # 生产实践：通常设置为 30000（30秒）
+    request-timeout-ms: 30000
+
+    # ==================== 事务配置 ====================
+    # 事务ID前缀，用于支持多分区事务
+    # 设置后启用事务功能，确保原子性写入
+    # 生产实践：仅在使用事务时才设置，如：transaction-id-prefix: tx-
+    # transaction-id-prefix:
+
+    # 事务超时时间（毫秒），应小于 delivery-timeout-ms
+    transaction-timeout-ms: 60000
+
+    # ==================== 指标配置 ====================
+    # 是否允许自动创建Topic（服务器端也会校验）
+    # 生产实践：生产环境建议 false，手动创建Topic更安全
+    allow-auto-create-topics: false
+
+    # ==================== 连接安全配置 ====================
+    # 安全协议：PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL
+    # 生产实践：内网用PLAINTEXT，跨机房或公网用SASL_SSL
+    # security-protocol: SASL_SSL
+
+    # ==================== 分区策略 ====================
+    # 分区器类，用于决定消息发送到哪个分区
+    # 默认使用 DefaultPartitioner（如果键为null，使用粘性分区策略）
+    # 自定义分区器可实现 Partitioner 接口
+    # partitioner-class: org.apache.kafka.clients.producer.DefaultPartitioner
+
+# ==================== 服务器地址配置 ====================
+# 多地址Bootstrap配置示例（用于连接集群任意节点）
+# kafka集群有多个broker时，配置多个地址提高连接成功率
+# bootstrap-servers已在上面配置，此处为示例说明
+# bootstrap-servers:
+#   - node1.kafka.com:9092
+#   - node2.kafka.com:9092
+#   - node3.kafka.com:9092
+
+# ==================== 自定义应用配置 ====================
+app:
+  # 消息主题名称
+  topic:
+    name: test-topic
+    # 分区数（创建Topic时的配置，此处仅为应用内引用）
+    partitions: 6
+    # 副本数
+    replicas: 3
+
+# 服务器端口
+server:
+  port: 8081

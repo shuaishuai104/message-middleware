@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # RocketMQ NameServer
+  namesrv:
+    image: apache/rocketmq:5.1.0
+    container_name: namesrv
+    hostname: namesrv
+    ports:
+      - "9876:9876"
+    environment:
+      - JAVA_OPTS=-Xms512m -Xmx512m -Xmn256m
+    command: sh mqnamesrv
+    networks:
+      - rocketmq-network
+    volumes:
+      - namesrv-data:/root/rocketmq/logs
+    healthcheck:
+      test: ["CMD", "sh", "-c", "echo > /dev/tcp/localhost/9876"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # RocketMQ Broker
+  broker:
+    image: apache/rocketmq:5.1.0
+    container_name: broker
+    hostname: broker
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+      - "10912:10912"
+    environment:
+      - NAMESRV_ADDR=namesrv:9876
+      - JAVA_OPTS=-Xms2g -Xmx2g -Xmn1g
+      - ROCKETMQ_BROKER_NAME=broker
+      - ROCKETMQ_BROKER_CLUSTER_NAME=DefaultCluster
+      - ROCKETMQ_BROKER_MODE=ASYNC_MASTER
+    command: sh mqbroker -n namesrv:9876 -c ../conf/broker.conf
+    depends_on:
+      namesrv:
+        condition: service_healthy
+    networks:
+      - rocketmq-network
+    volumes:
+      - broker-data:/root/rocketmq/store
+      - broker-logs:/root/rocketmq/logs
+    extra_hosts:
+      - "namesrv:127.0.0.1"
+
+  # RocketMQ Console (管理界面)
+  rocketmq-console:
+    image: apacherocketmq/rocketmq-console:2.0.0
+    container_name: rocketmq-console
+    ports:
+      - "8082:8080"
+    environment:
+      - JAVA_OPTS=-Dserver.port=8080 -Drocketmq.config.namesrvAddr=namesrv:9876
+    depends_on:
+      - namesrv
+    networks:
+      - rocketmq-network
+
+networks:
+  rocketmq-network:
+    driver: bridge
+
+volumes:
+  namesrv-data:
+  broker-data:
+  broker-logs:

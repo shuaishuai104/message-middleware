@@ -7,6 +7,9 @@
 server:
   port: 8081  # 应用端口
 
+rocketmq:
+  name-server: localhost:9876  # RocketMQ NameServer 地址
+
 spring:
   application:
     name: rocketmq-producer  # 应用名称，用于生成消费者组ID等
@@ -132,7 +135,7 @@ spring:
       # - 内存有限
       # - 消息体较大
       # - 异步回调处理较慢
-      # max-in-flight-requests-per-connection: 2048
+      max-in-flight-requests-per-connection: 2048
 
       # ================================================
       # 消息追踪
@@ -165,29 +168,6 @@ spring:
       # - 默认 Topic 被删除或配置异常
       # - 需要隔离追踪数据
       customized-trace-topic: my-trace-topic
-
-      # ================================================
-      # 事务消息回查线程池配置
-      # ================================================
-      # 事务消息回查（check）线程池大小
-      # 仅事务消息 Producer 需要配置
-      #
-      # check-thread-pool-min: 最小线程数，默认 1
-      # check-thread-pool-max: 最大线程数，默认 1
-      # check-request-hold-time: 任务保留时间（毫秒）
-      #
-      # 建议值：
-      # - 小规模系统：1~5
-      # - 中等规模：5~10
-      # - 大规模高并发：10~20
-      #
-      # 何时调大：
-      # - 事务消息量大
-      # - 回查频繁
-      # transaction:
-      #   check-thread-pool-min: 1
-      #   check-thread-pool-max: 10
-      #   check-request-hold-time: 2000
 
 # ================================================
 # 应用自定义配置

@@ -3,7 +3,13 @@
     "allow": [
       "Bash(mvn compile:*)",
       "Bash(mvn test:*)",
-      "Bash(cat target/surefire-reports/*KafkaMessageServiceTest*)"
+      "Bash(cat target/surefire-reports/*KafkaMessageServiceTest*)",
+      "Bash(mvn spring-boot:run)",
+      "Bash(taskkill //F //IM java.exe)",
+      "Bash(docker exec:*)",
+      "Bash(curl:*)",
+      "Bash(mvn spring-boot:run -DskipTests)",
+      "Bash(docker-compose:*)"
     ]
   }
 }

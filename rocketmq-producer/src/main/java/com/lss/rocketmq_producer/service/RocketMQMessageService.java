@@ -23,11 +23,14 @@ public class RocketMQMessageService {
 
     private static final String TOPIC = "test-topic";
 
+    /**
+     * 同步发送消息 - 使用 "topic:tag" 格式指定目标
+     */
     public SendResult sendSync(String tag, String key, String body) {
-        Message message = new Message(TOPIC, tag, key, body.getBytes(StandardCharsets.UTF_8));
+        String destination = TOPIC + ":" + (tag != null ? tag : "*");
 
         try {
-            SendResult result = rocketMQTemplate.syncSend(TOPIC, message, 3000);
+            SendResult result = rocketMQTemplate.syncSend(destination, body, 3000);
 
             log.info("[Sync send OK] msgId={}, offset={}",
                     result.getMsgId(), result.getQueueOffset());
@@ -39,11 +42,15 @@ public class RocketMQMessageService {
         }
     }
 
+    /**
+     * 发送消息到指定队列 - 使用 MessageQueueSelector
+     */
     public SendResult sendSyncToQueue(int queueId, String body) {
         Message message = new Message(TOPIC, "*", "", body.getBytes(StandardCharsets.UTF_8));
 
         try {
-            SendResult result = rocketMQTemplate.syncSend(TOPIC + ":" + queueId, message, 3000);
+            SendResult result = rocketMQTemplate.getProducer().send(message,
+                    (mqs, msg, arg) -> mqs.get((Integer) arg), queueId, 3000);
             log.info("[Sync send to queue OK] queueId={}, msgId={}", queueId, result.getMsgId());
             return result;
         } catch (Exception e) {
@@ -51,10 +58,13 @@ public class RocketMQMessageService {
         }
     }
 
+    /**
+     * 异步发送消息
+     */
     public void sendAsync(String tag, String key, String body) {
-        Message message = new Message(TOPIC, tag, key, body.getBytes(StandardCharsets.UTF_8));
+        String destination = TOPIC + ":" + (tag != null ? tag : "*");
 
-        rocketMQTemplate.asyncSend(TOPIC, message, new org.apache.rocketmq.client.producer.SendCallback() {
+        rocketMQTemplate.asyncSend(destination, body, new org.apache.rocketmq.client.producer.SendCallback() {
             @Override
             public void onSuccess(org.apache.rocketmq.client.producer.SendResult result) {
                 log.info("[Async send OK] msgId={}, offset={}",
@@ -70,12 +80,18 @@ public class RocketMQMessageService {
         log.debug("[Async send submitted] tag={}, key={}", tag, key);
     }
 
+    /**
+     * 单向发送消息（不等待响应）
+     */
     public void sendOneWay(String tag, String body) {
-        Message message = new Message(TOPIC, tag, "", body.getBytes(StandardCharsets.UTF_8));
-        rocketMQTemplate.sendOneWay(TOPIC, message);
+        String destination = TOPIC + ":" + (tag != null ? tag : "*");
+        rocketMQTemplate.sendOneWay(destination, body);
         log.debug("[Oneway send submitted] tag={}", tag);
     }
 
+    /**
+     * 批量发送消息
+     */
     public SendResult sendBatch(List<String> messages) {
         try {
             SendResult result = rocketMQTemplate.syncSend(TOPIC, messages, 3000);
@@ -86,13 +102,21 @@ public class RocketMQMessageService {
         }
     }
 
+    /**
+     * 带 Tags 发送消息 - tags 可以是 "tag1 || tag2 || tag3" 格式
+     */
     public SendResult sendWithTags(String tags, String key, String body) {
-        Message message = new Message(TOPIC, tags, key, body.getBytes(StandardCharsets.UTF_8));
+        String destination = TOPIC + ":" + tags;
+        Message message = new Message();
+        message.setTopic(TOPIC);
+        message.setTags(tags);
+        message.setKeys(key != null ? key : UUID.randomUUID().toString());
+        message.setBody(body.getBytes(StandardCharsets.UTF_8));
         message.putUserProperty("trace-id", UUID.randomUUID().toString());
         message.putUserProperty("span-id", UUID.randomUUID().toString().substring(0, 8));
 
         try {
-            SendResult result = rocketMQTemplate.syncSend(TOPIC, message, 3000);
+            SendResult result = rocketMQTemplate.syncSend(destination, message, 3000);
             log.info("[Send with tags OK] tags={}, msgId={}", tags, result.getMsgId());
             return result;
         } catch (Exception e) {
@@ -100,6 +124,9 @@ public class RocketMQMessageService {
         }
     }
 
+    /**
+     * 顺序消息发送 - 同一 orderId 的消息按顺序发送
+     */
     public void sendOrderly(String orderId, List<String> steps) {
         MessageQueueSelector selector = (mqs, msg, arg) -> {
             int hash = arg.toString().hashCode();

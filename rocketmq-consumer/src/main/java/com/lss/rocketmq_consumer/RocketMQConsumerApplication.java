@@ -1,10 +1,9 @@
 package com.lss.rocketmq_consumer;
 
-import org.apache.rocketmq.spring.autoconfigure.RocketMQAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication(exclude = {RocketMQAutoConfiguration.class})
+@SpringBootApplication
 public class RocketMQConsumerApplication {
 
     public static void main(String[] args) {
